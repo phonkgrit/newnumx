@@ -76,6 +76,7 @@ const ReportsPage: React.FC<ReportsPageProps> = ({ selectedRound }) => {
               key={`print-${selectedRound.id}`}
               roundId={selectedRound.id}
               drawDate={selectedRound.draw_date}
+              onClose={() => setActiveTab('summary')}
             />
           )}
         </div>
