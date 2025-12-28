@@ -1,0 +1,88 @@
+import React from 'react';
+import { Hash, Settings } from 'lucide-react';
+import EntryForm from './EntryForm';
+import LimitSettings from './LimitSettings';
+import type { LotteryRound } from '../types';
+
+interface EntryPageProps {
+  selectedRound: LotteryRound | null;
+  onEntriesChange: () => void;
+}
+
+type EntryTab = 'entry' | 'limits';
+
+const EntryPage: React.FC<EntryPageProps> = ({ selectedRound, onEntriesChange }) => {
+  const [activeTab, setActiveTab] = React.useState<EntryTab>('entry');
+
+  const tabs = [
+    { id: 'entry' as EntryTab, label: 'เพิ่มเลข', icon: Hash },
+    { id: 'limits' as EntryTab, label: 'จำกัด', icon: Settings },
+  ];
+
+  if (!selectedRound) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/50 p-8 text-center">
+        <Hash className="w-16 h-16 mx-auto text-slate-300" />
+        <h3 className="mt-4 text-lg font-medium text-slate-700">ยังไม่ได้เลือกงวด</h3>
+        <p className="text-slate-500 mt-1">กรุณาไปที่เมนู "งวดหวย" เพื่อเลือกงวดก่อน</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header Card */}
+      <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 rounded-2xl p-6 text-white shadow-xl shadow-emerald-500/20">
+        <h2 className="text-2xl font-bold">คีย์เลขหวย</h2>
+        <p className="text-emerald-100 mt-1">เพิ่มเลขและตั้งค่าจำกัดสำหรับงวดที่เลือก</p>
+        
+        <div className="mt-4 px-4 py-3 bg-white/10 backdrop-blur-sm rounded-xl inline-block">
+          <p className="text-emerald-200 text-sm">งวดที่เลือก</p>
+          <p className="font-bold text-lg">{selectedRound.draw_date}</p>
+        </div>
+      </div>
+
+      {/* Tab Buttons */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200/50 overflow-hidden">
+        <div className="flex border-b border-slate-100">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`
+                flex-1 flex items-center justify-center gap-2 py-4 px-4
+                font-medium transition-all duration-200
+                ${activeTab === tab.id
+                  ? 'text-primary-600 bg-primary-50 border-b-2 border-primary-600 -mb-px'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
+                }
+              `}
+            >
+              <tab.icon className="w-5 h-5" />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4">
+          {activeTab === 'entry' && (
+            <EntryForm
+              key={`entry-${selectedRound.id}`}
+              roundId={selectedRound.id}
+              onEntriesChange={onEntriesChange}
+            />
+          )}
+          {activeTab === 'limits' && (
+            <LimitSettings
+              key={`limits-${selectedRound.id}`}
+              roundId={selectedRound.id}
+              onLimitsChange={onEntriesChange}
+            />
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default EntryPage;
