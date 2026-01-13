@@ -26,6 +26,7 @@ export interface LotteryEntry {
   price: number;
   is_over_limit: boolean;
   customer_name: string | null;
+  recorded_by: string | null;
   note: string | null;
   created_at: string;
   updated_at: string;
@@ -54,6 +55,7 @@ export interface CreateEntryData {
   number_value: string;
   number_type: string;
   price: number;
+  recorded_by?: string | null;
 }
 
 export interface CreateLimitData {

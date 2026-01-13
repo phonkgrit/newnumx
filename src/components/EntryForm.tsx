@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { entriesApi } from '../api';
-import { NUMBER_TYPES, type NumberType } from '../config';
+
 import { useAlert } from './AlertModal';
+import { useUserName } from '../hooks/useUserName';
 import type { LotteryEntry, CreateEntryData } from '../types';
 
 interface EntryFormProps {
@@ -15,7 +16,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const { showAlert, showConfirm } = useAlert();
-  
+  const { userName } = useUserName();
+
   // Form state
   const [numberValue, setNumberValue] = useState('');
   const [price, setPrice] = useState('');
@@ -50,34 +52,40 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
     setEditingId(null);
   };
 
-  // Auto-detect number type based on length
-  const getNumberType = (num: string): NumberType => {
-    return num.length === 3 ? '3digit' : '2digit';
+  // Handle number input with validation
+  const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '');
+
+    if (value.length > 2) {
+      showAlert({ type: 'warning', message: 'กรุณากรอกเลขได้แค่ 2 หลักเท่านั้น' });
+      return;
+    }
+
+    setNumberValue(value);
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    
+
     if (!numberValue || !price) {
       showAlert({ type: 'warning', message: 'กรุณากรอกเลขและราคา' });
       numberInputRef.current?.focus();
       return;
     }
 
-    // Validate number format (2 or 3 digits only)
-    if (numberValue.length < 2 || numberValue.length > 3) {
-      showAlert({ type: 'warning', message: 'กรุณากรอกเลข 2 หรือ 3 หลัก' });
+    // Validate number format (2 digits only)
+    if (numberValue.length !== 2) {
+      showAlert({ type: 'warning', message: 'กรุณากรอกเลข 2 หลักเท่านั้น' });
       numberInputRef.current?.focus();
       return;
     }
 
-    const detectedType = getNumberType(numberValue);
-
     const data: CreateEntryData = {
       round_id: roundId,
       number_value: numberValue,
-      number_type: detectedType,
+      number_type: '2digit',
       price: parseFloat(price),
+      recorded_by: userName,
     };
 
     try {
@@ -138,7 +146,7 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 mb-4">
-      <h2 
+      <h2
         className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2 cursor-pointer"
         onClick={() => numberInputRef.current?.focus()}
       >
@@ -151,17 +159,17 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              เลข (2-3 หลัก)
+              เลข (2 หลัก)
             </label>
             <input
               ref={numberInputRef}
               type="text"
               value={numberValue}
-              onChange={(e) => setNumberValue(e.target.value.replace(/\D/g, ''))}
+              onChange={handleNumberChange}
               onKeyDown={handleNumberKeyDown}
               className="input-field text-center text-2xl font-bold"
               placeholder="00"
-              maxLength={3}
+              maxLength={2}
               inputMode="numeric"
               autoComplete="off"
             />
@@ -210,11 +218,10 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
             entries.map((entry) => (
               <div
                 key={entry.id}
-                className={`p-3 rounded-lg border-2 ${
-                  entry.is_over_limit
-                    ? 'bg-danger-50 border-danger-300'
-                    : 'bg-gray-50 border-transparent'
-                }`}
+                className={`p-3 rounded-lg border-2 ${entry.is_over_limit
+                  ? 'bg-danger-50 border-danger-300'
+                  : 'bg-gray-50 border-transparent'
+                  }`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -222,12 +229,15 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
                       {entry.number_value}
                     </span>
                     <div>
-                      <div className="text-sm text-gray-500">
-                        {NUMBER_TYPES[entry.number_type as NumberType]}
-                      </div>
+
                       <div className="font-semibold text-primary-600">
-                        ฿{entry.price.toLocaleString()}
+                        ฿{Number(entry.price).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </div>
+                      {entry.recorded_by && (
+                        <div className="text-xs text-slate-400">
+                          โดย: {entry.recorded_by}
+                        </div>
+                      )}
                     </div>
                     {entry.is_over_limit && (
                       <span className="badge-overlimit flex items-center gap-1">

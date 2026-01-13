@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, X } from 'lucide-react';
-import { entriesApi, roundsApi } from '../api';
-import type { NumberSummary, RoundSummary } from '../types';
+import { entriesApi } from '../api';
+import type { NumberSummary } from '../types';
 import { format } from 'date-fns';
 import { th } from 'date-fns/locale';
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { useAlert } from './AlertModal';
 
 interface PrintReportProps {
@@ -18,9 +19,11 @@ const formatMoney = (num: number): string => {
   return Math.round(num).toLocaleString('th-TH');
 };
 
+const ITEMS_PER_PAGE = 20;
+
 const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose }) => {
   const [numberSummary, setNumberSummary] = useState<NumberSummary[]>([]);
-  const [roundSummary, setRoundSummary] = useState<RoundSummary | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const reportRef = useRef<HTMLDivElement>(null);
@@ -29,12 +32,10 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
   const fetchAllData = useCallback(async () => {
     try {
       setLoading(true);
-      const [numberRes, roundRes] = await Promise.all([
+      const [numberRes] = await Promise.all([
         entriesApi.getSummary(roundId),
-        roundsApi.getSummary(roundId),
       ]);
       setNumberSummary(numberRes.data);
-      setRoundSummary(roundRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -46,24 +47,37 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
     fetchAllData();
   }, [fetchAllData]);
 
-  const handleSaveImage = async () => {
+  const handleSavePDF = async () => {
     if (!reportRef.current) return;
-    
+
     try {
       setSaving(true);
-      const canvas = await html2canvas(reportRef.current, {
-        scale: 2, // Higher quality
-        backgroundColor: '#ffffff',
-        useCORS: true,
-      });
-      
-      const link = document.createElement('a');
-      link.download = `รายงานหวย_${format(new Date(drawDate), 'dd-MM-yyyy')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+
+      const pages = reportRef.current.querySelectorAll('.print-page');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+
+      for (let i = 0; i < pages.length; i++) {
+        if (i > 0) {
+          pdf.addPage();
+        }
+
+        const canvas = await html2canvas(pages[i] as HTMLElement, {
+          scale: 2,
+          backgroundColor: '#ffffff',
+          useCORS: true,
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdfWidth = pdf.internal.pageSize.getWidth();
+        const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+
+        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      }
+
+      pdf.save(`รายงานหวย_${format(new Date(drawDate), 'dd-MM-yyyy')}.pdf`);
     } catch (error) {
-      console.error('Error saving image:', error);
-      showAlert({ type: 'error', message: 'ไม่สามารถบันทึกภาพได้' });
+      console.error('Error saving PDF:', error);
+      showAlert({ type: 'error', message: 'ไม่สามารถบันทึก PDF ได้' });
     } finally {
       setSaving(false);
     }
@@ -79,20 +93,7 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
     return 0;
   };
 
-  // Summary calculations
-  const summary2digit = numberSummary.filter(i => i.number_type === '2digit');
-  const summary3digit = numberSummary.filter(i => i.number_type === '3digit');
-  
-  const overLimit2digit = summary2digit.filter(i => i.is_over_limit);
-  const overLimit3digit = summary3digit.filter(i => i.is_over_limit);
 
-  const overLimit2digitAmount = overLimit2digit.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
-  const overLimit3digitAmount = overLimit3digit.reduce((sum, i) => sum + (Number(i.total_amount) || 0), 0);
-  
-  const excess2digitAmount = overLimit2digit.reduce((sum, i) => sum + getOverLimitExcess(i), 0);
-  const excess3digitAmount = overLimit3digit.reduce((sum, i) => sum + getOverLimitExcess(i), 0);
-
-  const grandTotalAmount = Number(roundSummary?.total_amount) || 0;
 
   if (loading) {
     return (
@@ -104,6 +105,19 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
   }
 
   const formattedDate = format(new Date(drawDate), 'd MMMM yyyy', { locale: th });
+
+  // Sort data
+  const sortedData = [...numberSummary].sort((a, b) => Number(b.total_amount) - Number(a.total_amount));
+
+  // Chunk data for pagination
+  const chunks = [];
+  for (let i = 0; i < sortedData.length; i += ITEMS_PER_PAGE) {
+    chunks.push(sortedData.slice(i, i + ITEMS_PER_PAGE));
+  }
+
+  if (chunks.length === 0) {
+    chunks.push([]); // Ensure at least one page
+  }
 
   return (
     <div>
@@ -137,19 +151,36 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
           padding: 16px;
           margin-bottom: 16px;
         }
+        .print-page {
+          width: 210mm;
+          min-height: 297mm;
+          padding: 20mm;
+          margin: 0 auto;
+          background: white;
+          box-shadow: 0 0 10px rgba(0,0,0,0.1);
+          margin-bottom: 20px;
+          position: relative;
+        }
+        @media print {
+          .print-page {
+            margin: 0;
+            box-shadow: none;
+            page-break-after: always;
+          }
+        }
       `}</style>
 
       {/* Header with Save Button */}
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">ตัวอย่างรายงาน</h2>
+        <h2 className="text-lg font-semibold">ตัวอย่างรายงาน (A4)</h2>
         <div className="flex items-center gap-2">
           <button
-            onClick={handleSaveImage}
+            onClick={handleSavePDF}
             disabled={saving}
             className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
-            {saving ? 'กำลังบันทึก...' : 'บันทึกภาพ'}
+            {saving ? 'กำลังบันทึก...' : 'บันทึก PDF'}
           </button>
           <button
             onClick={onClose}
@@ -160,124 +191,68 @@ const PrintReport: React.FC<PrintReportProps> = ({ roundId, drawDate, onClose })
         </div>
       </div>
 
-      {/* Report Content - For Image Capture */}
-      <div className="bg-gray-100 rounded-lg p-4">
-        <div ref={reportRef} className="bg-white shadow-lg p-6 rounded-lg">
+      {/* Report Content - For PDF Capture */}
+      <div className="bg-gray-100 rounded-lg p-4 overflow-auto max-h-[80vh]">
+        <div ref={reportRef}>
+          {chunks.map((chunk, pageIndex) => (
+            <div key={pageIndex} className="print-page">
+              {/* Header - Show on every page or just first? Let's show on every page with page number */}
               <div className="text-center mb-6">
                 <h1 className="text-xl font-bold mb-1">รายงานสรุปหวย</h1>
                 <p className="text-base">งวดวันที่ {formattedDate}</p>
-                <p className="text-xs text-gray-500">พิมพ์เมื่อ: {format(new Date(), 'd MMM yyyy HH:mm', { locale: th })}</p>
+                <div className="flex justify-between items-end mt-2">
+                  <p className="text-xs text-gray-500">พิมพ์เมื่อ: {format(new Date(), 'd MMM yyyy HH:mm', { locale: th })}</p>
+                  <p className="text-xs text-gray-500">หน้า {pageIndex + 1} / {chunks.length}</p>
+                </div>
               </div>
 
-              {/* Grand Total Box */}
-              <div className="summary-card bg-blue-50 border-blue-400">
-                <h2 className="text-lg font-bold text-center mb-3">📊 สรุปรวมทั้งงวด</h2>
-                <table className="print-table">
-                  <tbody>
-                    <tr>
-                      <td className="font-bold">ยอดเงินรวมทั้งหมด</td>
-                      <td className="text-right font-bold text-green-700">฿{formatMoney(grandTotalAmount)}</td>
-                    </tr>
-                    <tr>
-                      <td className="font-bold">จำนวนเลขทั้งหมด</td>
-                      <td className="text-right font-bold">{numberSummary.length} เลข</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
 
-              {/* Over Limit Summary */}
-              <div className="summary-card bg-red-50 border-red-400">
-                <h2 className="text-base font-bold text-red-700 mb-3">🚨 เลขเกินจำกัด</h2>
+
+              {/* Table Content */}
+              <div>
+                {pageIndex === 0 && <h3 className="text-base font-bold text-gray-800 mb-2">📝 รายละเอียดทั้งหมด</h3>}
                 <table className="print-table">
                   <thead>
-                    <tr className="bg-red-100">
-                      <th>ประเภท</th>
-                      <th className="text-right">จำนวนเลข</th>
-                      <th className="text-right">ยอดรวม</th>
-                      <th className="text-right">ยอดที่เกิน</th>
+                    <tr className="bg-gray-100">
+                      <th className="text-center" style={{ width: '60px' }}>เลข</th>
+                      <th className="text-center">ประเภท</th>
+                      <th className="text-right">ยอดซื้อ</th>
+                      <th className="text-right">จำกัด</th>
+                      <th className="text-right">ยอดเกิน</th>
+                      <th className="text-center" style={{ width: '60px' }}>เลข</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td>2 ตัว</td>
-                      <td className="text-right">{overLimit2digit.length} เลข</td>
-                      <td className="text-right">฿{formatMoney(overLimit2digitAmount)}</td>
-                      <td className="text-right text-red-600 font-bold">฿{formatMoney(excess2digitAmount)}</td>
-                    </tr>
-                    <tr>
-                      <td>3 ตัว</td>
-                      <td className="text-right">{overLimit3digit.length} เลข</td>
-                      <td className="text-right">฿{formatMoney(overLimit3digitAmount)}</td>
-                      <td className="text-right text-red-600 font-bold">฿{formatMoney(excess3digitAmount)}</td>
-                    </tr>
-                    <tr className="bg-red-100 font-bold">
-                      <td>รวม</td>
-                      <td className="text-right">{overLimit2digit.length + overLimit3digit.length} เลข</td>
-                      <td className="text-right">฿{formatMoney(overLimit2digitAmount + overLimit3digitAmount)}</td>
-                      <td className="text-right text-red-600">฿{formatMoney(excess2digitAmount + excess3digitAmount)}</td>
-                    </tr>
+                    {chunk.map((item, idx) => {
+                      let rowClass = 'bg-green-100';
+                      if (item.is_over_limit) {
+                        rowClass = 'bg-red-100';
+                      } else if (item.limit_amount > 0 && Number(item.total_amount) === Number(item.limit_amount)) {
+                        rowClass = 'bg-yellow-100';
+                      }
+
+                      return (
+                        <tr key={`${pageIndex}-${idx}`} className={rowClass}>
+                          <td className="text-center font-bold text-lg">{item.number_value}</td>
+                          <td className="text-center text-gray-500">
+                            {item.number_type === '2digit' ? '2 ตัว' : '3 ตัว'}
+                          </td>
+                          <td className="text-right font-bold text-lg">{formatMoney(item.total_amount)} ฿</td>
+                          <td className="text-right">
+                            {item.limit_amount > 0 ? `${formatMoney(item.limit_amount)} ฿` : '-'}
+                          </td>
+                          <td className={`text-right font-bold text-lg ${item.is_over_limit ? 'text-red-600' : 'text-black'}`}>
+                            {item.is_over_limit ? `${formatMoney(getOverLimitExcess(item))} ฿` : '0 ฿'}
+                          </td>
+                          <td className="text-center font-bold text-lg">{item.number_value}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
-
-              {/* Over Limit 2 digit */}
-              {overLimit2digit.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-base font-bold text-red-700 mb-2">📝 รายละเอียดเลขเกินจำกัด - 2 ตัว</h3>
-                  <table className="print-table">
-                    <thead>
-                      <tr className="bg-red-100">
-                        <th className="text-center" style={{width: '60px'}}>เลข</th>
-                        <th className="text-right">ยอดซื้อ</th>
-                        <th className="text-right">จำกัด</th>
-                        <th className="text-right">ยอดเกิน</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overLimit2digit
-                        .sort((a, b) => getOverLimitExcess(b) - getOverLimitExcess(a))
-                        .map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="text-center font-bold text-lg">{item.number_value}</td>
-                            <td className="text-right">฿{formatMoney(item.total_amount)}</td>
-                            <td className="text-right">฿{formatMoney(item.limit_amount)}</td>
-                            <td className="text-right text-red-600 font-bold">฿{formatMoney(getOverLimitExcess(item))}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-
-              {/* Over Limit 3 digit */}
-              {overLimit3digit.length > 0 && (
-                <div className="mt-4">
-                  <h3 className="text-base font-bold text-red-700 mb-2">📝 รายละเอียดเลขเกินจำกัด - 3 ตัว</h3>
-                  <table className="print-table">
-                    <thead>
-                      <tr className="bg-red-100">
-                        <th className="text-center" style={{width: '60px'}}>เลข</th>
-                        <th className="text-right">ยอดซื้อ</th>
-                        <th className="text-right">จำกัด</th>
-                        <th className="text-right">ยอดเกิน</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {overLimit3digit
-                        .sort((a, b) => getOverLimitExcess(b) - getOverLimitExcess(a))
-                        .map((item, idx) => (
-                          <tr key={idx}>
-                            <td className="text-center font-bold text-lg">{item.number_value}</td>
-                            <td className="text-right">฿{formatMoney(item.total_amount)}</td>
-                            <td className="text-right">฿{formatMoney(item.limit_amount)}</td>
-                            <td className="text-right text-red-600 font-bold">฿{formatMoney(getOverLimitExcess(item))}</td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+            </div>
+          ))}
         </div>
       </div>
     </div>

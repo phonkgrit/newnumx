@@ -6,8 +6,10 @@ import EntryPage from './components/EntryPage';
 import ReportsPage from './components/ReportsPage';
 import SettingsPage from './components/SettingsPage';
 import CreateRoundModal from './components/CreateRoundModal';
+import NameModal from './components/NameModal';
 import { roundsApi } from './api';
 import { useAlert } from './components/AlertModal';
+import { useUserName } from './hooks/useUserName';
 import type { LotteryRound, MenuType } from './types';
 
 function App() {
@@ -16,8 +18,10 @@ function App() {
   const [rounds, setRounds] = useState<LotteryRound[]>([]);
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showNameModal, setShowNameModal] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const { showAlert } = useAlert();
+  const { userName, needsName, saveName, clearName } = useUserName();
 
   const handleEntriesChange = useCallback(() => {
     setRefreshKey((prev) => prev + 1);
@@ -128,6 +132,9 @@ function App() {
         activeMenu={activeMenu}
         onMenuChange={setActiveMenu}
         title={getPageTitle()}
+        userName={userName}
+        onProfileClick={() => setShowNameModal(true)}
+        onLogout={clearName}
       >
         {renderContent()}
       </Layout>
@@ -136,6 +143,14 @@ function App() {
         isOpen={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onSubmit={handleCreateRound}
+      />
+
+      <NameModal
+        isOpen={needsName || showNameModal}
+        onSubmit={(name) => {
+          saveName(name);
+          setShowNameModal(false);
+        }}
       />
     </>
   );

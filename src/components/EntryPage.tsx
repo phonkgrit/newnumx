@@ -31,15 +31,10 @@ const EntryPage: React.FC<EntryPageProps> = ({ selectedRound, onEntriesChange })
 
   return (
     <div className="space-y-6">
-      {/* Header Card */}
-      <div className="bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-500 rounded-2xl p-6 text-white shadow-xl shadow-emerald-500/20">
-        <h2 className="text-2xl font-bold">คีย์เลขหวย</h2>
-        <p className="text-emerald-100 mt-1">เพิ่มเลขและตั้งค่าจำกัดสำหรับงวดที่เลือก</p>
-        
-        <div className="mt-4 px-4 py-3 bg-white/10 backdrop-blur-sm rounded-xl inline-block">
-          <p className="text-emerald-200 text-sm">งวดที่เลือก</p>
-          <p className="font-bold text-lg">{selectedRound.draw_date}</p>
-        </div>
+      {/* Round Badge */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-500 rounded-xl px-4 py-2 text-white shadow-md inline-flex items-center gap-2">
+        <span className="text-emerald-200 text-sm">งวด</span>
+        <span className="font-bold">{selectedRound.draw_date}</span>
       </div>
 
       {/* Tab Buttons */}
