@@ -34,12 +34,11 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
 
   useEffect(() => {
     if (roundId) {
-      // Reset pagination state
+      // Reset and load first 10 entries
       setEntries([]);
       setOffset(0);
       setHasMore(true);
       fetchEntries(0, true);
-      // Focus on number input when component mounts or roundId changes
       setTimeout(() => numberInputRef.current?.focus(), 100);
     }
   }, [roundId]);
@@ -119,10 +118,12 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
         // Update entry in-place
         setEntries(prev => prev.map(e => e.id === editingId ? res.data : e));
       } else {
-        const res = await entriesApi.create(data);
-        // Prepend new entry to the top (user just added it)
-        setEntries(prev => [res.data, ...prev]);
-        setTotalCount(prev => prev + 1);
+        await entriesApi.create(data);
+        // Reset and reload to show only first 10 entries
+        setEntries([]);
+        setOffset(0);
+        setHasMore(true);
+        await fetchEntries(0, true);
       }
       resetForm();
       // Focus back to number input for continuous entry
@@ -237,9 +238,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
       <div className="mt-6">
         <h3 className="text-md font-semibold text-gray-700 mb-3">
           รายการที่บันทึก ({totalCount})
-          {totalCount > DISPLAY_LIMIT && (
+          {totalCount > entries.length && (
             <span className="text-xs font-normal text-gray-400 ml-2">
-              แสดง {entries.length} รายการล่าสุด
+              แสดง {entries.length} รายการ
             </span>
           )}
         </h3>
