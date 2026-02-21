@@ -15,7 +15,10 @@ const DISPLAY_LIMIT = 10;
 const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
   const [entries, setEntries] = useState<LotteryEntry[]>([]);
   const [totalCount, setTotalCount] = useState(0);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const { showAlert, showConfirm } = useAlert();
   const { userName } = useUserName();
@@ -24,28 +27,47 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
   const [numberValue, setNumberValue] = useState('');
   const [price, setPrice] = useState('');
 
-  // Refs for input focus
+  // Refs for input focus and scroll container
   const numberInputRef = useRef<HTMLInputElement>(null);
   const priceInputRef = useRef<HTMLInputElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (roundId) {
-      fetchEntries();
+      // Reset pagination state
+      setEntries([]);
+      setOffset(0);
+      setHasMore(true);
+      fetchEntries(0, true);
       // Focus on number input when component mounts or roundId changes
       setTimeout(() => numberInputRef.current?.focus(), 100);
     }
   }, [roundId]);
 
-  const fetchEntries = async () => {
+  const fetchEntries = async (startOffset: number = 0, isInitial: boolean = false) => {
     try {
-      setLoading(true);
-      const response = await entriesApi.getByRound(roundId, DISPLAY_LIMIT);
-      setEntries(response.data.entries);
+      if (isInitial) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
+      const response = await entriesApi.getByRound(roundId, DISPLAY_LIMIT, startOffset);
+      const newEntries = response.data.entries;
+      
+      if (isInitial) {
+        setEntries(newEntries);
+      } else {
+        setEntries(prev => [...prev, ...newEntries]);
+      }
+      
       setTotalCount(response.data.total);
+      setOffset(startOffset + newEntries.length);
+      setHasMore(newEntries.length === DISPLAY_LIMIT && (startOffset + newEntries.length) < response.data.total);
     } catch (error) {
       console.error('Error fetching entries:', error);
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -98,8 +120,8 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
         setEntries(prev => prev.map(e => e.id === editingId ? res.data : e));
       } else {
         const res = await entriesApi.create(data);
-        // Prepend new entry, keep only latest DISPLAY_LIMIT
-        setEntries(prev => [res.data, ...prev].slice(0, DISPLAY_LIMIT));
+        // Prepend new entry to the top (user just added it)
+        setEntries(prev => [res.data, ...prev]);
         setTotalCount(prev => prev + 1);
       }
       resetForm();
@@ -221,13 +243,28 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
             </span>
           )}
         </h3>
-        <div className="space-y-2 max-h-80 overflow-y-auto">
+        <div
+          ref={scrollContainerRef}
+          className="space-y-2 max-h-80 overflow-y-auto"
+          onScroll={(e) => {
+            const target = e.currentTarget;
+            // Load more when scrolled near bottom (within 50px)
+            if (
+              hasMore &&
+              !loadingMore &&
+              target.scrollHeight - target.scrollTop - target.clientHeight < 50
+            ) {
+              fetchEntries(offset, false);
+            }
+          }}
+        >
           {loading ? (
             <div className="text-center py-4 text-gray-500">กำลังโหลด...</div>
           ) : entries.length === 0 ? (
             <div className="text-center py-4 text-gray-500">ยังไม่มีรายการ</div>
           ) : (
-            entries.map((entry) => (
+            <>
+              {entries.map((entry) => (
               <div
                 key={entry.id}
                 className={`p-3 rounded-lg border-2 ${entry.is_over_limit
@@ -274,7 +311,21 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
                   </div>
                 </div>
               </div>
-            ))
+              ))}
+              {loadingMore && (
+                <div className="text-center py-3 text-gray-400 text-sm">
+                  กำลังโหลดเพิ่ม...
+                </div>
+              )}
+              {!loadingMore && hasMore && entries.length < totalCount && (
+                <button
+                  onClick={() => fetchEntries(offset, false)}
+                  className="w-full py-2 text-sm text-gray-500 hover:text-primary-600 hover:bg-gray-50 rounded-lg transition-colors"
+                >
+                  โหลดเพิ่ม ({entries.length} / {totalCount})
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>

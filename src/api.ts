@@ -29,7 +29,7 @@ export const roundsApi = {
 
 // Entries API
 export const entriesApi = {
-  getByRound: (roundId: number, limit: number = 100) => api.get<{ entries: LotteryEntry[]; total: number }>(`/entries/round/${roundId}?limit=${limit}`),
+  getByRound: (roundId: number, limit: number = 100, offset: number = 0) => api.get<{ entries: LotteryEntry[]; total: number; offset: number; limit: number }>(`/entries/round/${roundId}?limit=${limit}&offset=${offset}`),
   getById: (id: number) => api.get<LotteryEntry>(`/entries/${id}`),
   create: (data: CreateEntryData) => api.post<LotteryEntry>('/entries/', data),
   update: (id: number, data: Partial<CreateEntryData>) => api.put<LotteryEntry>(`/entries/${id}`, data),
