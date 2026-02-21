@@ -7,10 +7,9 @@ import type { PriceLimit } from '../types';
 
 interface LimitSettingsProps {
   roundId: number;
-  onLimitsChange: () => void;
 }
 
-const LimitSettings: React.FC<LimitSettingsProps> = ({ roundId, onLimitsChange }) => {
+const LimitSettings: React.FC<LimitSettingsProps> = ({ roundId }) => {
   const [limits, setLimits] = useState<PriceLimit[]>([]);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<Record<NumberType, string>>({
@@ -61,7 +60,6 @@ const LimitSettings: React.FC<LimitSettingsProps> = ({ roundId, onLimitsChange }
         limit_amount: parseFloat(amount),
       });
       fetchLimits();
-      onLimitsChange();
     } catch (error: any) {
       showAlert({
         type: 'error',
@@ -78,7 +76,6 @@ const LimitSettings: React.FC<LimitSettingsProps> = ({ roundId, onLimitsChange }
         try {
           await limitsApi.delete(limitId);
           fetchLimits();
-          onLimitsChange();
         } catch (error) {
           showAlert({ type: 'error', message: 'ไม่สามารถลบได้' });
         }

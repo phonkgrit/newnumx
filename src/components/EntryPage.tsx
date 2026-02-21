@@ -6,12 +6,11 @@ import type { LotteryRound } from '../types';
 
 interface EntryPageProps {
   selectedRound: LotteryRound | null;
-  onEntriesChange: () => void;
 }
 
 type EntryTab = 'entry' | 'limits';
 
-const EntryPage: React.FC<EntryPageProps> = ({ selectedRound, onEntriesChange }) => {
+const EntryPage: React.FC<EntryPageProps> = ({ selectedRound }) => {
   const [activeTab, setActiveTab] = React.useState<EntryTab>('entry');
 
   const tabs = [
@@ -64,14 +63,12 @@ const EntryPage: React.FC<EntryPageProps> = ({ selectedRound, onEntriesChange })
             <EntryForm
               key={`entry-${selectedRound.id}`}
               roundId={selectedRound.id}
-              onEntriesChange={onEntriesChange}
             />
           )}
           {activeTab === 'limits' && (
             <LimitSettings
               key={`limits-${selectedRound.id}`}
               roundId={selectedRound.id}
-              onLimitsChange={onEntriesChange}
             />
           )}
         </div>

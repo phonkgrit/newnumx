@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import Layout from './components/Layout';
 import RoundsPage from './components/RoundsPage';
@@ -19,13 +19,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showNameModal, setShowNameModal] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
   const { showAlert } = useAlert();
   const { userName, needsName, saveName, clearName } = useUserName();
-
-  const handleEntriesChange = useCallback(() => {
-    setRefreshKey((prev) => prev + 1);
-  }, []);
 
   // Fetch rounds on mount
   useEffect(() => {
@@ -107,15 +102,14 @@ function App() {
       case 'entry':
         return (
           <EntryPage
-            key={`entry-${selectedRound?.id}-${refreshKey}`}
+            key={`entry-${selectedRound?.id}`}
             selectedRound={selectedRound}
-            onEntriesChange={handleEntriesChange}
           />
         );
       case 'reports':
         return (
           <ReportsPage
-            key={`reports-${selectedRound?.id}-${refreshKey}`}
+            key={`reports-${selectedRound?.id}`}
             selectedRound={selectedRound}
           />
         );

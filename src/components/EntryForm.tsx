@@ -8,11 +8,13 @@ import type { LotteryEntry, CreateEntryData } from '../types';
 
 interface EntryFormProps {
   roundId: number;
-  onEntriesChange: () => void;
 }
 
-const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
+const DISPLAY_LIMIT = 10;
+
+const EntryForm: React.FC<EntryFormProps> = ({ roundId }) => {
   const [entries, setEntries] = useState<LotteryEntry[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const { showAlert, showConfirm } = useAlert();
@@ -37,8 +39,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
   const fetchEntries = async () => {
     try {
       setLoading(true);
-      const response = await entriesApi.getByRound(roundId);
-      setEntries(response.data);
+      const response = await entriesApi.getByRound(roundId, DISPLAY_LIMIT);
+      setEntries(response.data.entries);
+      setTotalCount(response.data.total);
     } catch (error) {
       console.error('Error fetching entries:', error);
     } finally {
@@ -90,13 +93,16 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
 
     try {
       if (editingId) {
-        await entriesApi.update(editingId, data);
+        const res = await entriesApi.update(editingId, data);
+        // Update entry in-place
+        setEntries(prev => prev.map(e => e.id === editingId ? res.data : e));
       } else {
-        await entriesApi.create(data);
+        const res = await entriesApi.create(data);
+        // Prepend new entry, keep only latest DISPLAY_LIMIT
+        setEntries(prev => [res.data, ...prev].slice(0, DISPLAY_LIMIT));
+        setTotalCount(prev => prev + 1);
       }
       resetForm();
-      fetchEntries();
-      onEntriesChange();
       // Focus back to number input for continuous entry
       setTimeout(() => numberInputRef.current?.focus(), 50);
     } catch (error: any) {
@@ -135,8 +141,9 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
       onConfirm: async () => {
         try {
           await entriesApi.delete(id);
-          fetchEntries();
-          onEntriesChange();
+          // Remove entry from local state instantly
+          setEntries(prev => prev.filter(e => e.id !== id));
+          setTotalCount(prev => prev - 1);
         } catch (error) {
           showAlert({ type: 'error', message: 'ไม่สามารถลบได้' });
         }
@@ -207,7 +214,12 @@ const EntryForm: React.FC<EntryFormProps> = ({ roundId, onEntriesChange }) => {
       {/* Entries List */}
       <div className="mt-6">
         <h3 className="text-md font-semibold text-gray-700 mb-3">
-          รายการที่บันทึก ({entries.length})
+          รายการที่บันทึก ({totalCount})
+          {totalCount > DISPLAY_LIMIT && (
+            <span className="text-xs font-normal text-gray-400 ml-2">
+              แสดง {entries.length} รายการล่าสุด
+            </span>
+          )}
         </h3>
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {loading ? (
